@@ -66,4 +66,4 @@ The app uses TMDB v4 Read Access Token via environment variable TMDB_TOKEN. If i
 
 # Release
 
-If you instead want a prebuilt Linux executable it is available in release
+If you instead want a prebuilt Linux/Windows executable it is available in release
