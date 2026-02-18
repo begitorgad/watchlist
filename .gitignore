@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+watchlist.sqlite3
+build/
+dist/
+*.spec
+Watchlist.exe
