@@ -3,7 +3,7 @@ A small personal watchlist app that runs locally on your PC (Windows/Linux). It 
 
 
 
-# Features
+# Features
 
 ## Adding / Searching
 
@@ -34,14 +34,14 @@ A small personal watchlist app that runs locally on your PC (Windows/Linux). It 
 - watchlist.sqlite3 — created automatically next to the scripts on first run. 
 
 
-# Requirements
+# Requirements
 
 - Python 3.10+ (tested on Python 3.12)
 - Dependencies:
     - PySide6
     - requests
 
-## Install:
+## Install:
 
 `pip install PySide6 requests`
 
@@ -50,7 +50,7 @@ A small personal watchlist app that runs locally on your PC (Windows/Linux). It 
 
 The app uses TMDB v4 Read Access Token via environment variable TMDB_TOKEN. If it’s missing, TMDB add can fall back to “Add local” behavior. 
 
-## Linux/macOS
+## Linux/macOS
 
 `export TMDB_TOKEN="YOUR_TMDB_V4_READ_ACCESS_TOKEN"`
 
