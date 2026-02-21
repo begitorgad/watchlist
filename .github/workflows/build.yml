@@ -44,4 +44,4 @@ jobs:
         with:
           name: Watchlist-${{ runner.os }}
           path: |
-            Watchlist-*.zip
+            Watchlist-${{ runner.os }}.zip
