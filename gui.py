@@ -1,4 +1,15 @@
 # gui.py
+# Minimal cross-platform GUI for your watchlist (PySide6 / Qt)
+#
+# Install:
+#   pip install PySide6 requests
+#
+# Run:
+#   python3 gui.py
+#
+# Requires: watch_core.py in the same folder (from the refactor I gave you).
+# Optional: set TMDB_TOKEN env var for metadata on add.
+
 from __future__ import annotations
 
 import os
@@ -30,6 +41,7 @@ from PySide6.QtWidgets import (
 from watch_core import WatchDB, TMDBClient, WatchService, AddOrShowResult, TmdbChoice, TitleItem
 
 def app_dir() -> Path:
+    # In a PyInstaller build, sys.executable is the .exe path
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent
@@ -48,6 +60,7 @@ def item_to_display_text(it: TitleItem) -> str:
 
 
 class PickDialog(QDialog):
+    """Dialog to pick a TMDB choice (movie/show) from a list."""
 
     def __init__(self, choices: list[TmdbChoice], parent: QWidget | None = None):
         super().__init__(parent)
@@ -94,6 +107,8 @@ class PickDialog(QDialog):
 
 
 class LocalAddDialog(QDialog):
+    """Dialog when TMDB is unavailable or returns nothing: choose type + confirm local add."""
+
     def __init__(self, typed_title: str, message: str, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Add locally?")
@@ -300,9 +315,11 @@ class MainWindow(QWidget):
         self.setWindowTitle("Watchlist")
         self.resize(900, 600)
 
+        # Core services
         self.db = WatchDB(DB_PATH)
         self.db.init_db()
 
+        # TMDB is optional (if token missing, add will fall back to local dialog)
         self.tmdb = TMDBClient()
         self.service = WatchService(db=self.db, tmdb=self.tmdb)
 
@@ -370,7 +387,14 @@ class MainWindow(QWidget):
 
         filters.addWidget(QLabel("Sort:"))
         self.sort_by = QComboBox()
-        self.sort_by.addItems(["Title (A→Z)", "Runtime (short→long)", "Runtime (long→short)"])
+        self.sort_by.addItems([
+            "Title (A→Z)",
+            "Title (Z→A)",
+            "Runtime (short→long)",
+            "Runtime (long→short)",
+            "Year (recent→oldest)",
+            "Year (oldest→recent)",
+        ])
         self.sort_by.currentIndexChanged.connect(self.on_filters_changed)
         filters.addWidget(self.sort_by)
 
@@ -440,6 +464,7 @@ class MainWindow(QWidget):
         return unseen, type_, genre, tag, limit
 
     def refresh_genres(self):
+        # Rebuild genre dropdown from DB
         self.genre_filter.blockSignals(True)
         current = self.genre_filter.currentText()
         self.genre_filter.clear()
@@ -448,6 +473,7 @@ class MainWindow(QWidget):
         for name, count in self.service.list_genres():
             self.genre_filter.addItem(name)
 
+        # Try restore selection if still exists
         idx = self.genre_filter.findText(current)
         if idx >= 0:
             self.genre_filter.setCurrentIndex(idx)
@@ -486,10 +512,45 @@ class MainWindow(QWidget):
 
         if mode == "Title (A→Z)":
             items.sort(key=lambda it: (it.title or "").lower())
+
+        elif mode == "Title (Z→A)":
+            items.sort(key=lambda it: (it.title or "").lower(), reverse=True)
+
         elif mode == "Runtime (short→long)":
-            items.sort(key=lambda it: (it.runtime_minutes is None, it.runtime_minutes or 0, (it.title or "").lower()))
-        else: 
-            items.sort(key=lambda it: (it.runtime_minutes is None, -(it.runtime_minutes or 0), (it.title or "").lower()))
+            items.sort(
+                key=lambda it: (
+                    it.runtime_minutes is None,
+                    it.runtime_minutes or 0,
+                    (it.title or "").lower(),
+                )
+            )
+
+        elif mode == "Runtime (long→short)":
+            items.sort(
+                key=lambda it: (
+                    it.runtime_minutes is None,
+                    -(it.runtime_minutes or 0),
+                    (it.title or "").lower(),
+                )
+            )
+
+        elif mode == "Year (recent→oldest)":
+            items.sort(
+                key=lambda it: (
+                    it.year is None,
+                    -(it.year or 0),
+                    (it.title or "").lower(),
+                )
+            )
+
+        elif mode == "Year (oldest→recent)":
+            items.sort(
+                key=lambda it: (
+                    it.year is None,
+                    it.year or 0,
+                    (it.title or "").lower(),
+                )
+            )
 
 
         self.list.clear()
@@ -514,6 +575,7 @@ class MainWindow(QWidget):
         return int(item.data(Qt.ItemDataRole.UserRole))
 
     def blend_with_grey(self, color: QColor, factor: float = 0.55) -> QColor:
+        # factor=0 => original, factor=1 => fully grey
         grey = QColor(160, 160, 160)
         r = int(color.red()   * (1 - factor) + grey.red()   * factor)
         g = int(color.green() * (1 - factor) + grey.green() * factor)
@@ -521,11 +583,13 @@ class MainWindow(QWidget):
         return QColor(r, g, b)
 
     def apply_item_style(self, qitem, is_seen: bool, base_color: QColor | None):
+        # No tag color
         if base_color is None:
             if is_seen:
                 qitem.setForeground(QColor(170, 170, 170))
             return
 
+        # With tag color
         if is_seen:
             qitem.setForeground(self.blend_with_grey(base_color))
         else:
@@ -566,6 +630,7 @@ class MainWindow(QWidget):
             QMessageBox.information(self, "Local search", "No matches in your list.")
             return
 
+        # Show matches in a simple dialog list (reuse PickDialog style if you want)
         text = "\n".join(f"- {item_to_display_text(m)}" for m in matches[:10])
         QMessageBox.information(self, "Local matches (top 10)", text)
 
@@ -605,12 +670,14 @@ class MainWindow(QWidget):
         if not typed:
             return
 
+        # If exact already exists, just show it (don’t add duplicate)
         r = self.service.add_or_show_start(typed)
         if r.status == "exists" and r.item:
             QMessageBox.information(self, "Already in your list", item_to_display_text(r.item))
             self.input.selectAll()
             return
 
+        # Ask movie/show
         dlg = LocalAddDialog(
             typed,
             "Add locally without TMDB metadata?",
@@ -624,19 +691,22 @@ class MainWindow(QWidget):
         self.input.selectAll()
 
     def on_live_toggle(self):
+        # When turning it off, go back to the normal list view
         if not self.live_local.isChecked():
             self.refresh_list()
         else:
+            # Apply immediately using current text
             self.on_live_filter(self.input.text())
 
 
     def on_live_filter(self, text: str):
         if not self.live_local.isChecked():
-            return 
+            return  # live mode off
     
         text = text.strip()
         unseen, type_, genre, tag, limit = self.current_filters()
         
+        # Build base list first
         if not text:
             items = self.service.list_titles(
                 unseen_only=unseen, type_=type_, genre=genre, tag=tag, limit=limit
@@ -645,6 +715,7 @@ class MainWindow(QWidget):
             items = self.service.suggestions(text, limit=limit)
 
             tag_map = self.service.db.get_tags_for_title_ids([it.id for it in items])
+            # Respect filters (suggestions may ignore them)
             if unseen:
                 items = [it for it in items if not it.seen]
             if type_:
@@ -657,15 +728,53 @@ class MainWindow(QWidget):
                     if any(tname == tag for tname, _c in tag_map.get(it.id, []))
                 ]
     
+        # For coloring by tags (same behavior as refresh_list)
         tag_map = self.service.db.get_tags_for_title_ids([it.id for it in items])
     
         mode = self.sort_by.currentText()
+
         if mode == "Title (A→Z)":
             items.sort(key=lambda it: (it.title or "").lower())
+
+        elif mode == "Title (Z→A)":
+            items.sort(key=lambda it: (it.title or "").lower(), reverse=True)
+
         elif mode == "Runtime (short→long)":
-            items.sort(key=lambda it: (it.runtime_minutes is None, it.runtime_minutes or 0, (it.title or "").lower()))
-        else: 
-            items.sort(key=lambda it: (it.runtime_minutes is None, -(it.runtime_minutes or 0), (it.title or "").lower()))
+            items.sort(
+                key=lambda it: (
+                    it.runtime_minutes is None,
+                    it.runtime_minutes or 0,
+                    (it.title or "").lower(),
+                )
+            )
+
+        elif mode == "Runtime (long→short)":
+            items.sort(
+                key=lambda it: (
+                    it.runtime_minutes is None,
+                    -(it.runtime_minutes or 0),
+                    (it.title or "").lower(),
+                )
+            )
+
+        elif mode == "Year (recent→oldest)":
+            items.sort(
+                key=lambda it: (
+                    it.year is None,
+                    -(it.year or 0),
+                    (it.title or "").lower(),
+                )
+            )
+
+        elif mode == "Year (oldest→recent)":
+            items.sort(
+                key=lambda it: (
+                    it.year is None,
+                    it.year or 0,
+                    (it.title or "").lower(),
+                )
+            )
+
     
         self.list.clear()
         for it in items:
@@ -713,29 +822,40 @@ class MainWindow(QWidget):
         self.service.set_seen(tid, new_seen)
         self.refresh_list()
 
+        # reselect same item if possible
         for i in range(self.list.count()):
             if int(self.list.item(i).data(Qt.ItemDataRole.UserRole)) == tid:
                 self.list.setCurrentRow(i)
                 break
 
     def on_random(self):
-        unseen, type_, genre, _limit = self.current_filters()
-        pick = self.service.random_pick(type_=type_, genre=genre) if unseen else self.service.random_pick(type_=type_, genre=genre)
+        unseen, type_, genre, tag, _limit = self.current_filters()
+
+        pick = self.service.random_pick(
+            unseen_only=unseen,
+            type_=type_,
+            genre=genre,
+            tag=tag,
+        )
+
         if not pick:
-            QMessageBox.information(self, "Random", "No unseen titles found for these filters.")
+            QMessageBox.information(self, "Random", "No titles found for these filters.")
             return
 
         QMessageBox.information(self, "Random pick", item_to_display_text(pick))
+
+        # Try highlight it in list
         for i in range(self.list.count()):
             if int(self.list.item(i).data(Qt.ItemDataRole.UserRole)) == pick.id:
                 self.list.setCurrentRow(i)
                 self.list.scrollToItem(self.list.item(i))
                 break
 
+
     def on_manage_tags(self):
         dlg = ManageTagsDialog(self.service, parent=self)
-        dlg.tags_updated.connect(self.refresh_tags) 
-        dlg.tags_updated.connect(self.refresh_list) 
+        dlg.tags_updated.connect(self.refresh_tags)   # refresh dropdown
+        dlg.tags_updated.connect(self.refresh_list)   # refresh list colors (optional but nice)
         dlg.exec()
 
     def on_set_tags(self):

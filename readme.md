@@ -17,7 +17,7 @@ A small personal watchlist app that runs locally on your PC (Windows/Linux). It 
 - Mark entries seen/unseen (seen items can be greyed; tagged items are colored, and seen+tagged becomes a greyed version of the tag color). 
 - Delete entries. 
 - Filters: unseen-only, type, genre, limit. 
-- Sorting: Title (A→Z), runtime ascending/descending. 
+- Sorting: Title (A→Z)(Z→A), runtime ascending/descending and release date (recent→oldest)(oldest→recent). 
 - Random pick (optionally filtered). 
 
 ## Tags / Marks
@@ -44,6 +44,22 @@ A small personal watchlist app that runs locally on your PC (Windows/Linux). It 
 ## Install:
 
 `pip install PySide6 requests`
+
+## Setup (recommended)
+
+Create a virtual environment:
+
+### Windows (PowerShell)
+
+`py -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt`
+
+### Linux / macOS
+
+`python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt`
 
 
 # TMDB setup (optional but recommended)
