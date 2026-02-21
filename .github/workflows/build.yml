@@ -32,7 +32,7 @@ jobs:
       - name: Build Windows
         if: runner.os == 'Windows'
         run: |
-          pyinstaller --noconfirm --clean --windowed --onefile gui.py --name Watchlist
+          pyinstaller --noconfirm --clean --windowed --onefile gui.py --name Watchlist.exe
 
       - name: Build Linux
         if: runner.os == 'Linux'
